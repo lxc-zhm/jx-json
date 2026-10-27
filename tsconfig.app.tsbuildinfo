@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/engine/formatcontroller.ts","./src/viewer/foldstate.ts","./src/viewer/jsonviewer.tsx","./src/viewer/tokens.ts","./src/worker/format.worker.ts","./src/worker/protocol.ts","./src/worker/reformat.ts"],"version":"5.9.3"}

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+public/sample-*.json
+*.local
+.DS_Store
+.zcode/
+.trellis/

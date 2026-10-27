@@ -1,0 +1,268 @@
+:root {
+  --bg: #14161a;
+  --panel: #1b1e24;
+  --panel-2: #23272f;
+  --border: #2c313a;
+  --text: #d7dae0;
+  --muted: #8b93a1;
+  --accent: #4f8cff;
+  --key: #c678dd;
+  --string: #98c379;
+  --number: #61afef;
+  --keyword: #e5a06c;
+  --punct: #7f8794;
+  --comment: #6a7382;
+  --error: #ff6b6b;
+  --ok: #7ec46a;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f2f4f7;
+    --panel: #ffffff;
+    --panel-2: #e9edf2;
+    --border: #d5dbe3;
+    --text: #24292f;
+    --muted: #6b7280;
+    --key: #8250df;
+    --string: #0a7d3f;
+    --number: #0550ae;
+    --keyword: #b35900;
+    --punct: #57606a;
+    --comment: #8b949e;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex: none;
+}
+
+header h1 {
+  font-size: 15px;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+header .sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-right: auto;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+}
+
+.pane:last-child {
+  border-right: none;
+}
+
+.pane-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex: none;
+}
+
+.dim {
+  color: var(--muted);
+}
+
+textarea {
+  flex: 1;
+  resize: none;
+  background: var(--panel);
+  color: var(--text);
+  border: none;
+  outline: none;
+  padding: 10px 12px;
+  font: 12px/1.5 var(--mono);
+  min-height: 0;
+}
+
+.viewer {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  background: var(--panel);
+  min-height: 0;
+}
+
+.viewer.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.viewer.empty.error-box p {
+  margin: 4px 0;
+}
+
+.viewer.empty.error-box p:first-child {
+  color: var(--error);
+}
+
+.viewer-inner {
+  position: relative;
+  min-width: 100%;
+}
+
+.row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  line-height: 20px;
+  font-size: 12px;
+  white-space: pre;
+  display: flex;
+}
+
+.row .fold {
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 15px;
+  text-align: center;
+}
+
+.row .fold:hover {
+  color: var(--accent);
+}
+
+.row .line {
+  padding-left: 18px;
+  flex: 1;
+}
+
+.t-plain {
+  color: inherit;
+}
+
+.t-key {
+  color: var(--key);
+}
+
+.t-string {
+  color: var(--string);
+}
+
+.t-number {
+  color: var(--number);
+}
+
+.t-keyword {
+  color: var(--keyword);
+}
+
+.t-punct {
+  color: var(--punct);
+}
+
+.t-comment {
+  color: var(--comment);
+  font-style: italic;
+}
+
+.status {
+  border-top: 1px solid var(--border);
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  gap: 18px;
+  background: var(--panel);
+  flex: none;
+  min-height: 29px;
+  align-items: center;
+}
+
+.status .err {
+  color: var(--error);
+}
+
+.status .ok {
+  color: var(--ok);
+}
