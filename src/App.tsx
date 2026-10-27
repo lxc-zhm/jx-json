@@ -117,7 +117,7 @@ export default function App() {
           lineNumbers(),
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
-          placeholder('在此粘贴或输入 JSON 字符串，右侧自动美化…\n提示：大于 100MB 的文本建议使用文件方式载入（后续版本）。'),
+          placeholder('在此粘贴或输入 JSON 字符串，右侧自动美化…'),
           EditorView.contentAttributes.of({ 'aria-label': '输入（原始 JSON）', spellcheck: 'false' }),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return
@@ -163,7 +163,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>jx-json</h1>
-        <span className="sub">JSON 格式化 · 折叠 · 虚拟滚动</span>
+        <span className="sub">JSON 美化</span>
         <div className="toolbar">
           <button type="button" className="btn" onClick={runNow}>
             立即格式化
