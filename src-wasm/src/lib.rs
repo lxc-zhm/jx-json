@@ -540,6 +540,10 @@ pub unsafe extern "C" fn jx_format(in_off: usize, input_len: usize) -> usize {
                 state = S_AFTER;
                 i += 1;
             } else if b0 == LBRACE || b0 == LBRACK {
+                if top_is_arr {
+                    // 数组的容器子项计数（与 JS 版一致）
+                    wr_usz(stack + (depth - 1) * STACK_ENTRY + 4, rd_usz(stack + (depth - 1) * STACK_ENTRY + 4) + 1);
+                }
                 if pending_break {
                     write_break!(depth);
                     pending_break = false;

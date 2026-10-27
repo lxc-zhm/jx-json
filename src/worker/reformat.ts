@@ -375,6 +375,7 @@ export function reformat(input: Uint8Array, hooks?: ReformatHooks): ReformatResu
         state = S_AFTER
         i++
       } else if (b0 === LBRACE || b0 === LBRACK) {
+        if (depth > 0 && stackType[depth - 1] === ARR) stackChild[depth - 1]++ // 数组的容器子项计数
         if (pendingBreak) {
           if (lineCount + 1 >= lineCap) {
             starts = growU32(starts)

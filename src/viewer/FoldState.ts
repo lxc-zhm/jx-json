@@ -1,6 +1,10 @@
 /**
  * 折叠状态：把「已折叠容器集合」换算为虚拟滚动所需的可见行映射。
- * intervals 按起始行升序且互不嵌套（折叠区内的箭头不可见，无法再折叠）。
+ *
+ * 区间可能嵌套（先折叠子节点、再折叠其祖先）：只有最外层折叠区间对可见行
+ * 有贡献——被已选祖先包含的子区间整段不可见，不得重复计入 hidden，
+ * 否则 totalRows 会少算乃至归零（输出区白屏）。rebuild 因此只保留
+ * 「互不包含」的最外层区间集合，lineAt 依赖该不变量做顺序累加。
  */
 import type { FoldData } from '../worker/protocol'
 
@@ -54,13 +58,22 @@ export class FoldState {
     this.hiddenTotal = 0
     if (!this.folds) return
     const starts = [...this.collapsed].sort((a, b) => a - b)
+    let cur: Interval | null = null
     for (const s of starts) {
       const idx = foldIndexAt(this.folds, s)
       if (idx < 0) continue
       const e = this.folds.ends[idx]
       const hidden = Math.max(0, e - s)
-      this.intervals.push({ start: s, end: e, hidden })
-      this.hiddenTotal += hidden
+      if (cur && e <= cur.end) {
+        // 被当前最外层区间完全包含（或相同）：子节点整段已不可见，跳过
+        continue
+      }
+      // 与当前区间部分重叠（折叠集合上不应出现，防御性截断）
+      const it: Interval =
+        cur && s <= cur.end ? { start: cur.end + 1, end: e, hidden: Math.max(0, e - cur.end - 1) } : { start: s, end: e, hidden }
+      this.intervals.push(it)
+      this.hiddenTotal += it.hidden
+      cur = it
     }
   }
 

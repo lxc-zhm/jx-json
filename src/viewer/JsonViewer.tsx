@@ -36,12 +36,12 @@ function Row({ row, line, model, foldState, onToggle }: RowProps) {
   let toks: Tok[]
   if (fi >= 0 && collapsed) {
     const full = getLine(model, line)
-    const opener = full.charCodeAt(full.length - 1)
-    const closer = opener === 123 ? '}' : ']'
-    const prefix = full.slice(0, -1)
-    toks = tokenizeLine(prefix)
+    const opener = full.slice(-1) // '{' 或 '['（行末字符）
+    const closer = opener === '{' ? '}' : ']'
+    toks = tokenizeLine(full.slice(0, -1))
     toks.push(
-      { text: prefix.endsWith(' ') ? '… ' : ' … ', cls: 'punct' },
+      { text: opener, cls: 'punct' },
+      { text: ' … ', cls: 'punct' },
       { text: closer, cls: 'punct' },
       { text: ` // ${model.folds.childCounts[fi]} 项`, cls: 'comment' },
     )
@@ -95,6 +95,19 @@ export function JsonViewer(props: {
   const onScroll = useCallback((e: UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop)
   }, [])
+
+  // 折叠收起后总行数骤减：滚动位置可能超出内容高度，钳回可视范围（否则渲染空白）。
+  // foldState 是可变对象（折叠切换靠 App 触发重渲染），故 effect 不设依赖、每次渲染后执行，成本可忽略。
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || !model) return
+    const contentH = foldState.totalRows(model.lineCount + 1) * ROW_H
+    const maxScroll = Math.max(0, contentH - el.clientHeight)
+    if (el.scrollTop > maxScroll) {
+      el.scrollTop = maxScroll
+      setScrollTop(el.scrollTop)
+    }
+  })
 
   if (!model) {
     return (
