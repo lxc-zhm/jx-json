@@ -14,13 +14,6 @@ type Status =
   | { kind: 'done'; workerMs: number; e2eMs: number; inBytes: number; outBytes: number; lines: number; stages?: string }
   | { kind: 'error'; message: string; line: number; column: number }
 
-const SAMPLE = `{
-  "app": "jx-json",
-  "version": 1,
-  "tags": ["json", "formatter", "viewer"],
-  "nested": { "list": [1, 2, 3], "ok": true, "none": null, "ratio": -2.5 }
-}`
-
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
@@ -147,14 +140,6 @@ export default function App() {
     setStatus((s) => (s.kind === 'done' ? { ...s } : s)) // 触发重渲染
   }, [])
 
-  const loadSample = useCallback(() => {
-    const editor = editorRef.current
-    if (editor) editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: SAMPLE } })
-    setInChars(SAMPLE.length)
-    setInLines(countLines(SAMPLE))
-    runNow()
-  }, [runNow])
-
   const clearAll = useCallback(() => {
     const editor = editorRef.current
     if (editor) editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: '' } })
@@ -183,12 +168,6 @@ export default function App() {
           <button type="button" className="btn" onClick={runNow}>
             立即格式化
           </button>
-          <button type="button" className="btn" onClick={loadSample}>
-            载入示例
-          </button>
-          <button type="button" className="btn" onClick={copyOut} disabled={!model}>
-            复制结果
-          </button>
           <button type="button" className="btn" onClick={clearAll}>
             清空
           </button>
@@ -207,6 +186,27 @@ export default function App() {
         <section className="pane">
           <div className="pane-head">
             <span>输出（只读 · 可折叠）</span>
+            <button
+              type="button"
+              className="btn icon-btn"
+              onClick={copyOut}
+              disabled={!model}
+              aria-label="复制结果"
+              title="复制结果"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </button>
           </div>
           {status.kind === 'error' ? (
             <div className="viewer empty error-box">

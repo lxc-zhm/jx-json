@@ -107,6 +107,29 @@ header .sub {
   cursor: default;
 }
 
+.btn.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 20px;
+  padding: 2px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.btn.icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.icon-btn svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
 .main {
   flex: 1;
   display: grid;
@@ -130,7 +153,9 @@ header .sub {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 12px;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 4px 12px;
   font-size: 12px;
   color: var(--muted);
   border-bottom: 1px solid var(--border);
