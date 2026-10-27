@@ -18,20 +18,40 @@ const SAMPLE = `{
   "nested": { "list": [1, 2, 3], "ok": true, "none": null, "ratio": -2.5 }
 }`
 
+// 输入行号列参数：与 textarea 的 font/line-height 保持一致（app.css 中 12px/18px）
+const IN_LH = 18
+const IN_PAD_T = 10
+
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
   return `${(n / 1048576).toFixed(1)} MB`
 }
 
+/** 统计文本行数（LF 计数 + 1）；仅在防抖回调里调用，避免逐键开销 */
+function countLines(text: string): number {
+  let n = 1
+  let i = text.indexOf('\n')
+  while (i !== -1) {
+    n++
+    i = text.indexOf('\n', i + 1)
+  }
+  return n
+}
+
 export default function App() {
   const taRef = useRef<HTMLTextAreaElement | null>(null)
+  const gutterRef = useRef<HTMLDivElement | null>(null)
   const fmtRef = useRef<Formatter | null>(null)
   const debounceRef = useRef(0)
   const foldRef = useRef<FoldState>(new FoldState())
   const [model, setModel] = useState<ViewModel | null>(null)
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [inChars, setInChars] = useState(0)
+  const [inLines, setInLines] = useState(1)
+  // 输入行号列的滚动状态（来自 textarea scrollTop）
+  const [gutterTop, setGutterTop] = useState(0)
+  const [gutterH, setGutterH] = useState(480)
 
   useEffect(() => {
     const fmt = new Formatter({
@@ -66,6 +86,7 @@ export default function App() {
         .then((r) => r.text())
         .then((t) => {
           setInChars(t.length)
+          setInLines(countLines(t))
           setStatus({ kind: 'running', ratio: 0 })
           fmt.format(t)
         })
@@ -77,9 +98,20 @@ export default function App() {
     }
   }, [])
 
+  // 行号列高度跟随布局
+  useEffect(() => {
+    const el = gutterRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setGutterH(el.clientHeight))
+    ro.observe(el)
+    setGutterH(el.clientHeight)
+    return () => ro.disconnect()
+  }, [])
+
   const runNow = useCallback(() => {
     const text = taRef.current?.value ?? ''
     setInChars(text.length)
+    setInLines(countLines(text))
     if (!text.trim()) {
       setModel(null)
       setStatus({ kind: 'idle' })
@@ -102,12 +134,16 @@ export default function App() {
   const loadSample = useCallback(() => {
     if (taRef.current) taRef.current.value = SAMPLE
     setInChars(SAMPLE.length)
+    setInLines(countLines(SAMPLE))
+    setGutterTop(0)
     runNow()
   }, [runNow])
 
   const clearAll = useCallback(() => {
     if (taRef.current) taRef.current.value = ''
     setInChars(0)
+    setInLines(1)
+    setGutterTop(0)
     setModel(null)
     setStatus({ kind: 'idle' })
   }, [])
@@ -120,6 +156,22 @@ export default function App() {
       window.alert('复制失败')
     }
   }, [model])
+
+  // 输入行号列：按 scrollTop 虚拟渲染可视行号
+  const inDigits = Math.max(3, String(inLines).length)
+  const inGutterW = inDigits * 8 + 16
+  const firstLine = Math.floor(gutterTop / IN_LH)
+  const visCount = Math.ceil(gutterH / IN_LH) + 1
+  const gutterNums: number[] = []
+  for (let i = 0; i < visCount; i++) {
+    const n = firstLine + 1 + i
+    if (n > inLines) break
+    gutterNums.push(n)
+  }
+
+  const onTaScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
+    setGutterTop(e.currentTarget.scrollTop)
+  }, [])
 
   return (
     <div className="app">
@@ -146,17 +198,34 @@ export default function App() {
         <section className="pane">
           <div className="pane-head">
             <span>输入（原始 JSON）</span>
-            <span className="dim">{inChars.toLocaleString()} 字符</span>
+            <span className="dim">{inChars.toLocaleString()} 字符 · {inLines.toLocaleString()} 行</span>
           </div>
-          <textarea
-            ref={taRef}
-            spellCheck={false}
-            placeholder={'在此粘贴或输入 JSON 字符串，右侧自动美化…\n提示：大于 100MB 的文本建议使用文件方式载入（后续版本）。'}
-            onInput={(e) => {
-              setInChars(e.currentTarget.value.length)
-              schedule()
-            }}
-          />
+          <div className="input-wrap">
+            <div
+              className="input-gutter"
+              ref={gutterRef}
+              style={{ width: inGutterW }}
+              aria-hidden
+            >
+              {gutterNums.map((n) => (
+                <div key={n} className="input-gutter-num" style={{ top: IN_PAD_T + (n - 1) * IN_LH - gutterTop }}>
+                  {n}
+                </div>
+              ))}
+            </div>
+            <textarea
+              ref={taRef}
+              wrap="off"
+              spellCheck={false}
+              style={{ marginLeft: inGutterW }}
+              placeholder={'在此粘贴或输入 JSON 字符串，右侧自动美化…\n提示：大于 100MB 的文本建议使用文件方式载入（后续版本）。'}
+              onInput={(e) => {
+                setInChars(e.currentTarget.value.length)
+                schedule()
+              }}
+              onScroll={onTaScroll}
+            />
+          </div>
         </section>
 
         <section className="pane">

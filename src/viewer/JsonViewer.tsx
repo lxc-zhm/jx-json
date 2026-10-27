@@ -51,11 +51,14 @@ function Row({ row, line, model, foldState, onToggle }: RowProps) {
 
   return (
     <div className="row" style={{ top: row * ROW_H }}>
+      <span className="row-lineno">{line + 1}</span>
       {fi >= 0 && (
         <button
           type="button"
           className="fold"
-          style={{ left: Math.min(model.folds.depths[fi] * ARROW_STEP, CONTENT_PAD - 2) + 2 }}
+          style={{
+            left: `calc(var(--gutter-w) + ${Math.min(model.folds.depths[fi] * ARROW_STEP, CONTENT_PAD - 2) + 2}px)`,
+          }}
           onClick={() => onToggle(line)}
           aria-label={collapsed ? '展开' : '折叠'}
         >
@@ -120,6 +123,8 @@ export function JsonViewer(props: {
   const totalRows = foldState.totalRows(model.lineCount + 1)
   const startRow = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN)
   const endRow = Math.min(totalRows, Math.ceil((scrollTop + viewH) / ROW_H) + OVERSCAN)
+  // 行号列宽随最大行号位数自适应
+  const gutterW = Math.max(3, String(model.lineCount + 1).length) * 8 + 16
 
   const rows = []
   for (let r = startRow; r < endRow; r++) {
@@ -129,7 +134,10 @@ export function JsonViewer(props: {
 
   return (
     <div className="viewer" ref={containerRef} onScroll={onScroll}>
-      <div className="viewer-inner" style={{ height: totalRows * ROW_H }}>
+      <div
+        className="viewer-inner"
+        style={{ height: totalRows * ROW_H, ['--gutter-w' as string]: `${gutterW}px` }}
+      >
         {rows}
       </div>
     </div>

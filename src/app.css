@@ -144,6 +144,7 @@ header .sub {
 
 textarea {
   flex: 1;
+  min-width: 0;
   resize: none;
   background: var(--panel);
   color: var(--text);
@@ -193,6 +194,17 @@ textarea {
   display: flex;
 }
 
+.row-lineno {
+  flex: none;
+  width: var(--gutter-w, 40px);
+  padding-right: 8px;
+  text-align: right;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+  margin-right: 6px;
+  user-select: none;
+}
+
 .row .fold {
   position: absolute;
   top: 2px;
@@ -215,6 +227,36 @@ textarea {
 .row .line {
   padding-left: 18px;
   flex: 1;
+}
+
+/* 输入栏行号列 */
+.input-wrap {
+  flex: 1;
+  display: flex;
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+}
+
+.input-gutter {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  background: var(--panel-2);
+  border-right: 1px solid var(--border);
+  user-select: none;
+  z-index: 1;
+}
+
+.input-gutter-num {
+  position: absolute;
+  right: 8px;
+  height: 18px;
+  line-height: 18px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .t-plain {
