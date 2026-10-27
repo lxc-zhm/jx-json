@@ -142,19 +142,6 @@ header .sub {
   color: var(--muted);
 }
 
-textarea {
-  flex: 1;
-  min-width: 0;
-  resize: none;
-  background: var(--panel);
-  color: var(--text);
-  border: none;
-  outline: none;
-  padding: 10px 12px;
-  font: 12px/1.5 var(--mono);
-  min-height: 0;
-}
-
 .viewer {
   flex: 1;
   overflow: auto;
@@ -229,34 +216,64 @@ textarea {
   flex: 1;
 }
 
-/* 输入栏行号列 */
 .input-wrap {
   flex: 1;
-  display: flex;
-  position: relative;
   min-height: 0;
   min-width: 0;
 }
 
-.input-gutter {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  overflow: hidden;
-  background: var(--panel-2);
-  border-right: 1px solid var(--border);
-  user-select: none;
-  z-index: 1;
+.input-wrap .cm-editor {
+  height: 100%;
+  background: var(--panel);
+  color: var(--text);
+  font: 12px/1.5 var(--mono);
 }
 
-.input-gutter-num {
-  position: absolute;
-  right: 8px;
-  height: 18px;
-  line-height: 18px;
-  font-size: 12px;
+.input-wrap .cm-editor.cm-focused {
+  outline: none;
+}
+
+.input-wrap .cm-scroller {
+  overflow: auto;
+  font-family: var(--mono);
+}
+
+.input-wrap .cm-editor .cm-content {
+  padding: 10px 0;
+  caret-color: var(--text);
+}
+
+/* Keep an old measured width from leaving empty space beyond a compressed line gap. */
+.input-wrap .cm-editor.long-single-line .cm-content {
+  flex-basis: auto !important;
+}
+
+.input-wrap .cm-editor .cm-content ::selection {
+  background: rgba(79, 140, 255, 0.35);
+}
+
+.input-wrap .cm-editor .cm-cursor {
+  border-left-color: var(--text);
+}
+
+.input-wrap .cm-line {
+  padding: 0 12px;
+}
+
+.input-wrap .cm-gutters {
+  background: var(--panel-2);
   color: var(--muted);
+  border-right: 1px solid var(--border);
+}
+
+.input-wrap .cm-gutterElement {
+  min-width: 40px;
+  padding: 0 8px;
+}
+
+.input-wrap .cm-placeholder {
+  color: var(--muted);
+  white-space: pre-wrap;
 }
 
 .t-plain {
