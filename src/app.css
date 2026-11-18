@@ -107,6 +107,35 @@ header .sub {
   cursor: default;
 }
 
+/* 自动补全开关：与按钮同族的 mono 字体、muted 色，hover 高亮 */
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.chk:hover {
+  color: var(--accent);
+}
+
+.chk input {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* pane-head 右侧分组：统计数字 + 自动补全开关 */
+.pane-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .btn.icon-btn {
   display: inline-flex;
   align-items: center;

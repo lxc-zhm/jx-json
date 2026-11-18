@@ -11,7 +11,16 @@ import './app.css'
 type Status =
   | { kind: 'idle' }
   | { kind: 'running'; ratio: number }
-  | { kind: 'done'; workerMs: number; e2eMs: number; inBytes: number; outBytes: number; lines: number; stages?: string }
+  | {
+      kind: 'done'
+      workerMs: number
+      e2eMs: number
+      inBytes: number
+      outBytes: number
+      lines: number
+      stages?: string
+      repaired?: number
+    }
   | { kind: 'error'; message: string; line: number; column: number }
 
 function fmtBytes(n: number): string {
@@ -24,6 +33,10 @@ function fmtBytes(n: number): string {
 const SPLIT_W = 6
 const MIN_PANE_W = 280
 const SPLIT_KEY = 'jx-split-ratio'
+/** 自动补全开关持久化 key（默认关闭） */
+const REPAIR_KEY = 'jx-auto-repair'
+/** 立即美化开关持久化 key（默认开启） */
+const AUTO_FORMAT_KEY = 'jx-auto-format'
 
 /** 统计 benchmark 样本行数 */
 function countLines(text: string): number {
@@ -48,11 +61,31 @@ export default function App() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [inChars, setInChars] = useState(0)
   const [inLines, setInLines] = useState(1)
+  // 自动补全开关：默认关闭；镜像到 ref 供 runNow 读取（避免重建 CodeMirror 编辑器）
+  const [autoRepair, setAutoRepair] = useState(() => window.localStorage.getItem(REPAIR_KEY) === '1')
+  const autoRepairRef = useRef(autoRepair)
   // 左侧输入面板占可用宽度的比例，随分割线拖动变化
   const [ratio, setRatio] = useState(() => {
     const saved = Number(window.localStorage.getItem(SPLIT_KEY))
     return Number.isFinite(saved) && saved > 0.1 && saved < 0.9 ? saved : 0.5
   })
+
+  const toggleAutoRepair = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const on = e.target.checked
+    setAutoRepair(on)
+    autoRepairRef.current = on
+    window.localStorage.setItem(REPAIR_KEY, on ? '1' : '0')
+  }, [])
+  // 立即美化开关：默认开启；关闭后输入变更不再触发格式化（镜像 ref 同上）
+  const [autoFormat, setAutoFormat] = useState(() => window.localStorage.getItem(AUTO_FORMAT_KEY) !== '0')
+  const autoFormatRef = useRef(autoFormat)
+
+  const toggleAutoFormat = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const on = e.target.checked
+    setAutoFormat(on)
+    autoFormatRef.current = on
+    window.localStorage.setItem(AUTO_FORMAT_KEY, on ? '1' : '0')
+  }, [])
 
   /** 依据当前容器宽度把比例夹进两侧最小宽度允许的范围 */
   const clampRatio = useCallback((r: number) => {
@@ -150,6 +183,7 @@ export default function App() {
           outBytes: m.outLen,
           lines: m.lineCount + 1,
           stages,
+          repaired: t.repaired,
         })
       },
       onError: (e) => {
@@ -180,6 +214,7 @@ export default function App() {
 
   const runNow = useCallback(() => {
     window.clearTimeout(debounceRef.current)
+    if (!autoFormatRef.current) return // 立即美化关闭：输入不触发格式化
     const doc = editorRef.current?.state.doc
     const text = doc?.toString() ?? ''
     setInChars(text.length)
@@ -190,7 +225,7 @@ export default function App() {
       return
     }
     setStatus({ kind: 'running', ratio: 0 })
-    fmtRef.current?.format(text)
+    fmtRef.current?.format(text, { repair: autoRepairRef.current })
   }, [])
 
   const schedule = useCallback(() => {
@@ -256,9 +291,6 @@ export default function App() {
         <h1>jx-json</h1>
         <span className="sub">JSON 美化</span>
         <div className="toolbar">
-          <button type="button" className="btn" onClick={runNow}>
-            立即格式化
-          </button>
           <button type="button" className="btn" onClick={clearAll}>
             清空
           </button>
@@ -269,7 +301,17 @@ export default function App() {
         <section className="pane" style={{ flex: `0 0 calc((100% - ${SPLIT_W}px) * ${ratio})` }}>
           <div className="pane-head">
             <span>输入（原始 JSON）</span>
-            <span className="dim">{inChars.toLocaleString()} 字符 · {inLines.toLocaleString()} 行</span>
+            <span className="pane-head-right">
+              <span className="dim">{inChars.toLocaleString()} 字符 · {inLines.toLocaleString()} 行</span>
+              <label className="chk" title="解析失败时尝试修复残缺或宽松语法的 JSON（不改动输入框）">
+                <input type="checkbox" checked={autoRepair} onChange={toggleAutoRepair} />
+                自动补全
+              </label>
+              <label className="chk" title="输入变更时自动美化；关闭后输入不触发格式化">
+                <input type="checkbox" checked={autoFormat} onChange={toggleAutoFormat} />
+                立即美化
+              </label>
+            </span>
           </div>
           <div className="input-wrap" ref={inputRef} />
         </section>
@@ -342,6 +384,9 @@ export default function App() {
         {status.kind === 'done' && (
           <>
             <span className="ok">✓ 完成</span>
+            {status.repaired !== undefined && (
+              <span className="ok">已自动补全（{status.repaired} 处）</span>
+            )}
             <span>格式化 {status.workerMs.toFixed(0)} ms</span>
             <span>端到端 {status.e2eMs.toFixed(0)} ms</span>
             <span>

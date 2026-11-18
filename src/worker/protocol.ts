@@ -30,6 +30,8 @@ export interface FormatRequest {
   type: 'format'
   id: number
   bytes: ArrayBuffer
+  /** 自动补全：解析失败时先用宽松语法修复器重写字节流再重试一次 */
+  repair?: boolean
 }
 
 export interface FormatProgressMsg {
@@ -63,6 +65,8 @@ export interface FormatDoneMsg {
   fDepth: ArrayBufferLike
   fChild: ArrayBufferLike
   foldCount: number
+  /** 自动补全成功时的修复处数（缺省 = 本次未经修复） */
+  repaired?: number
 }
 
 export type WorkerOut = FormatProgressMsg | FormatErrorMsg | FormatDoneMsg

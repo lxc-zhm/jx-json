@@ -1,6 +1,8 @@
 /// 格式化 Worker：优先使用 WASM 核心（jx_core），加载失败或异常时回退纯 JS 实现。
 /// 两条路径产出相同的 ViewModel 数据（输出字节 + 行偏移 + 折叠区间 typed arrays）。
+/// 解析失败且请求「自动补全」时，先用宽松语法修复器（repair.ts）重写字节流，再重跑一次管线。
 import { reformat } from './reformat'
+import { repairJson } from './repair'
 import type { WorkerOut } from './protocol'
 
 const wasmUrl = new URL('./jx_core.wasm', import.meta.url)
@@ -86,24 +88,36 @@ function formatWasm(core: WasmCore, input: Uint8Array) {
   return r
 }
 
-const ctx = self as unknown as {
-  onmessage: ((e: MessageEvent) => void) | null
-  postMessage(msg: WorkerOut, transfer?: Transferable[]): void
+/** 两条引擎路径的统一结果（done 消息所需字段已对齐） */
+interface PipeOk {
+  output: Uint8Array
+  /** 有效输出字节数（js 回退的 output 是整个扩容缓冲区，真实长度在 outLen） */
+  outLen: number
+  lineStarts: Uint32Array
+  lineEnds: Uint32Array
+  lineCount: number
+  fStart: Uint32Array | Int32Array
+  fEnd: Uint32Array | Int32Array
+  fDepth: Uint8Array
+  fChild: Uint32Array | Int32Array
+  foldCount: number
+  engine: string
+  stages?: Record<string, number>
+  /** 自动补全成功时的修复处数 */
+  repairFixes?: number
 }
 
-let ready = loadCore()
+interface PipeErr {
+  message: string
+  line: number
+  column: number
+  engine: string
+}
 
-ctx.onmessage = async (e: MessageEvent) => {
-  const msg = e.data as { type: 'format'; id: number; bytes: ArrayBuffer }
-  if (msg.type !== 'format') return
-  core = await ready
-  const input = new Uint8Array(msg.bytes)
-  const t0 = performance.now()
+type PipeResult = ({ ok: true } & PipeOk) | ({ ok: false } & PipeErr)
 
-  // 进度：WASM 路径整体原子执行（无中途进度）；JS 路径同。
-  // 发一次起步进度让 UI 进入 running 态即可。
-  ctx.postMessage({ type: 'progress', id: msg.id, ratio: 0.01 })
-
+/** WASM 优先 → JS 回退的完整管线（保持原有引擎选择与进度语义）。 */
+function runPipeline(input: Uint8Array, jobId: number): PipeResult {
   let w: ReturnType<typeof formatWasm> | null = null
   if (core) {
     try {
@@ -114,18 +128,91 @@ ctx.onmessage = async (e: MessageEvent) => {
       ;(globalThis as any).__stages = undefined
     }
   }
-  const engine = w ? 'wasm' : `js(${coreError})`
-  if (w && 'ok' in w && w.ok) {
+  if (w && 'ok' in w) {
     const r = w.ok
+    return {
+      ok: true,
+      output: r.output,
+      outLen: r.output.length,
+      lineStarts: r.lineStarts,
+      lineEnds: r.lineEnds,
+      lineCount: r.lineCount,
+      fStart: r.fStart,
+      fEnd: r.fEnd,
+      fDepth: r.fDepth,
+      fChild: r.fChild,
+      foldCount: r.foldCount,
+      engine: 'wasm',
+      stages: (globalThis as any).__stages ?? undefined,
+    }
+  }
+  if (w && 'err' in w) {
+    // WASM 解析错误：保持原行为直接返回错误（修复入口由 onmessage 统一处理）
+    return { ok: false, message: w.err.message, line: w.err.line, column: w.err.column, engine: 'wasm' }
+  }
+  // JS 回退
+  const res = reformat(input, {
+    onProgress: (ratio) => ctx.postMessage({ type: 'progress', id: jobId, ratio: 0.01 + ratio * 0.99 }),
+  })
+  if (!res.ok) {
+    return { ok: false, message: res.message, line: res.line, column: res.column, engine: `js(${coreError})` }
+  }
+  return {
+    ok: true,
+    output: res.output,
+    outLen: res.outLen,
+    lineStarts: res.lineStarts,
+    lineEnds: res.lineEnds,
+    lineCount: res.lineCount,
+    fStart: res.folds.starts,
+    fEnd: res.folds.ends,
+    fDepth: res.folds.depths,
+    fChild: res.folds.childCounts,
+    foldCount: res.folds.count,
+    engine: `js(${coreError})`,
+  }
+}
+
+const ctx = self as unknown as {
+  onmessage: ((e: MessageEvent) => void) | null
+  postMessage(msg: WorkerOut, transfer?: Transferable[]): void
+}
+
+let ready = loadCore()
+
+ctx.onmessage = async (e: MessageEvent) => {
+  const msg = e.data as { type: 'format'; id: number; bytes: ArrayBuffer; repair?: boolean }
+  if (msg.type !== 'format') return
+  core = await ready
+  const input = new Uint8Array(msg.bytes)
+  const t0 = performance.now()
+
+  // 进度：WASM 路径整体原子执行（无中途进度）；JS 路径同。
+  // 发一次起步进度让 UI 进入 running 态即可。
+  ctx.postMessage({ type: 'progress', id: msg.id, ratio: 0.01 })
+
+  let r = runPipeline(input, msg.id)
+  if (!r.ok && msg.repair) {
+    // 解析失败且开启自动补全：宽松语法修复后重跑一次管线
+    const rep = repairJson(input)
+    r = runPipeline(rep.output, msg.id)
+    if (r.ok) {
+      r.repairFixes = rep.fixes
+    } else {
+      r.message = `自动补全后仍无法解析：${r.message}`
+    }
+  }
+  if (r.ok) {
     ctx.postMessage(
       {
         type: 'done',
         id: msg.id,
         elapsedMs: performance.now() - t0,
-        stages: (globalThis as any).__stages ?? undefined,
-        engine,
+        stages: r.stages,
+        engine: r.engine,
+        repaired: r.repairFixes,
         output: r.output.buffer,
-        outLen: r.output.length,
+        outLen: r.outLen,
         lineStarts: r.lineStarts.buffer,
         lineEnds: r.lineEnds.buffer,
         lineCount: r.lineCount,
@@ -147,58 +234,12 @@ ctx.onmessage = async (e: MessageEvent) => {
     )
     return
   }
-  if (w && 'err' in w && w.err) {
-    ctx.postMessage({
-      type: 'error',
-      id: msg.id,
-      message: w.err.message,
-      line: w.err.line,
-      column: w.err.column,
-      engine,
-    })
-    return
-  }
-
-  // JS 回退
-  const res = reformat(input, {
-    onProgress: (ratio) => ctx.postMessage({ type: 'progress', id: msg.id, ratio: 0.01 + ratio * 0.99 }),
+  ctx.postMessage({
+    type: 'error',
+    id: msg.id,
+    message: r.message,
+    line: r.line,
+    column: r.column,
+    engine: r.engine,
   })
-  if (!res.ok) {
-    ctx.postMessage({
-      type: 'error',
-      id: msg.id,
-      message: res.message,
-      line: res.line,
-      column: res.column,
-      engine,
-    })
-    return
-  }
-  ctx.postMessage(
-    {
-      type: 'done',
-      id: msg.id,
-      elapsedMs: performance.now() - t0,
-      engine,
-      output: res.output.buffer,
-      outLen: res.outLen,
-      lineStarts: res.lineStarts.buffer,
-      lineEnds: res.lineEnds.buffer,
-      lineCount: res.lineCount,
-      fStart: res.folds.starts.buffer,
-      fEnd: res.folds.ends.buffer,
-      fDepth: res.folds.depths.buffer,
-      fChild: res.folds.childCounts.buffer,
-      foldCount: res.folds.count,
-    },
-    [
-      res.output.buffer,
-      res.lineStarts.buffer,
-      res.lineEnds.buffer,
-      res.folds.starts.buffer,
-      res.folds.ends.buffer,
-      res.folds.depths.buffer,
-      res.folds.childCounts.buffer,
-    ],
-  )
 }

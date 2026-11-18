@@ -11,6 +11,8 @@ export interface FormatHandlers {
       inBytes: number
       stages?: Record<string, number>
       engine?: string
+      /** 自动补全成功时的修复处数（缺省 = 未经修复） */
+      repaired?: number
     },
   ) => void
   onError: (info: { message: string; line: number; column: number }) => void
@@ -21,6 +23,7 @@ interface Job {
   t0: number
   inBytes: number
   buffer: ArrayBuffer
+  repair?: boolean
 }
 
 export class Formatter {
@@ -35,10 +38,11 @@ export class Formatter {
     this.worker.onmessage = (e: MessageEvent<WorkerOut>) => this.handle(e.data)
   }
 
-  format(text: string): void {
+  /** 格式化文本；opts.repair = 解析失败时尝试自动补全修复 */
+  format(text: string, opts?: { repair?: boolean }): void {
     const bytes = new TextEncoder().encode(text)
     const id = ++this.seq
-    const job: Job = { id, t0: performance.now(), inBytes: bytes.length, buffer: bytes.buffer }
+    const job: Job = { id, t0: performance.now(), inBytes: bytes.length, buffer: bytes.buffer, repair: opts?.repair }
     if (this.busy) {
       this.pending = job // latest-wins：忙时只保留最新任务
     } else {
@@ -49,7 +53,7 @@ export class Formatter {
   private send(job: Job): void {
     this.busy = true
     this.active = job
-    this.worker.postMessage({ type: 'format', id: job.id, bytes: job.buffer }, [job.buffer])
+    this.worker.postMessage({ type: 'format', id: job.id, bytes: job.buffer, repair: job.repair }, [job.buffer])
   }
 
   private handle(m: WorkerOut): void {
@@ -86,6 +90,7 @@ export class Formatter {
         inBytes: job.inBytes,
         stages: done.stages,
         engine: done.engine,
+        repaired: done.repaired,
       })
     }
     const p = this.pending
