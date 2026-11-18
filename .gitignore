@@ -3,6 +3,7 @@ dist/
 public/sample-*.json
 *.local
 .DS_Store
+*.tsbuildinfo
 .zcode/
 .trellis/
 .codex/
