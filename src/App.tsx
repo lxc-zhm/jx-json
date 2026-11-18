@@ -20,6 +20,11 @@ function fmtBytes(n: number): string {
   return `${(n / 1048576).toFixed(1)} MB`
 }
 
+/** 分割线宽度 / 面板最小宽度 / 分割位置持久化 key */
+const SPLIT_W = 6
+const MIN_PANE_W = 280
+const SPLIT_KEY = 'jx-split-ratio'
+
 /** 统计 benchmark 样本行数 */
 function countLines(text: string): number {
   let n = 1
@@ -33,6 +38,8 @@ function countLines(text: string): number {
 
 export default function App() {
   const inputRef = useRef<HTMLDivElement | null>(null)
+  const mainRef = useRef<HTMLDivElement | null>(null)
+  const draggingRef = useRef(false)
   const editorRef = useRef<EditorView | null>(null)
   const fmtRef = useRef<Formatter | null>(null)
   const debounceRef = useRef(0)
@@ -41,6 +48,90 @@ export default function App() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [inChars, setInChars] = useState(0)
   const [inLines, setInLines] = useState(1)
+  // 左侧输入面板占可用宽度的比例，随分割线拖动变化
+  const [ratio, setRatio] = useState(() => {
+    const saved = Number(window.localStorage.getItem(SPLIT_KEY))
+    return Number.isFinite(saved) && saved > 0.1 && saved < 0.9 ? saved : 0.5
+  })
+
+  /** 依据当前容器宽度把比例夹进两侧最小宽度允许的范围 */
+  const clampRatio = useCallback((r: number) => {
+    const rect = mainRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= SPLIT_W) return r
+    const avail = rect.width - SPLIT_W
+    const minPane = Math.min(MIN_PANE_W, rect.width * 0.45)
+    const min = minPane / avail
+    return Math.min(Math.max(r, min), 1 - min)
+  }, [])
+
+  const updateRatio = useCallback(
+    (value: number | ((prev: number) => number)) => {
+      setRatio((prev) => clampRatio(typeof value === 'function' ? value(prev) : value))
+    },
+    [clampRatio],
+  )
+
+  // 持久化分割位置；窗口变窄后把已保存比例夹回合法范围
+  useEffect(() => {
+    window.localStorage.setItem(SPLIT_KEY, String(ratio))
+  }, [ratio])
+  useEffect(() => {
+    setRatio((r) => clampRatio(r))
+  }, [clampRatio])
+
+  const applySplit = useCallback(
+    (clientX: number) => {
+      const rect = mainRef.current?.getBoundingClientRect()
+      if (rect) updateRatio((clientX - rect.left) / (rect.width - SPLIT_W))
+    },
+    [updateRatio],
+  )
+
+  const onSplitPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      draggingRef.current = true
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        /* 指针已释放等场景下捕获失败可忽略 */
+      }
+      document.body.classList.add('splitting')
+      applySplit(e.clientX)
+    },
+    [applySplit],
+  )
+
+  const onSplitPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (draggingRef.current) applySplit(e.clientX)
+    },
+    [applySplit],
+  )
+
+  const endSplitDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    draggingRef.current = false
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    document.body.classList.remove('splitting')
+  }, [])
+
+  const onSplitKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const step = e.shiftKey ? 0.05 : 0.02
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        updateRatio((r) => r - step)
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        updateRatio((r) => r + step)
+      } else if (e.key === 'Home') {
+        e.preventDefault()
+        updateRatio(0.5)
+      }
+    },
+    [updateRatio],
+  )
 
   useEffect(() => {
     const fmt = new Formatter({
@@ -174,14 +265,32 @@ export default function App() {
         </div>
       </header>
 
-      <main className="main">
-        <section className="pane">
+      <main className="main" ref={mainRef}>
+        <section className="pane" style={{ flex: `0 0 calc((100% - ${SPLIT_W}px) * ${ratio})` }}>
           <div className="pane-head">
             <span>输入（原始 JSON）</span>
             <span className="dim">{inChars.toLocaleString()} 字符 · {inLines.toLocaleString()} 行</span>
           </div>
           <div className="input-wrap" ref={inputRef} />
         </section>
+
+        <div
+          className="split"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整左右面板宽度"
+          aria-valuenow={Math.round(ratio * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          tabIndex={0}
+          title="拖动调整宽度，双击恢复对半分"
+          onPointerDown={onSplitPointerDown}
+          onPointerMove={onSplitPointerMove}
+          onPointerUp={endSplitDrag}
+          onPointerCancel={endSplitDrag}
+          onKeyDown={onSplitKeyDown}
+          onDoubleClick={() => updateRatio(0.5)}
+        />
 
         <section className="pane">
           <div className="pane-head">

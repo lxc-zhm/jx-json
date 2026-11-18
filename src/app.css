@@ -132,21 +132,53 @@ header .sub {
 
 .main {
   flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   min-height: 0;
 }
 
 .pane {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: min(280px, 45%);
   min-height: 0;
-  border-right: 1px solid var(--border);
 }
 
-.pane:last-child {
-  border-right: none;
+/* 可拖动分割线：6px 命中区，中线 1px 视觉线，悬停/拖动时高亮 */
+.split {
+  flex: none;
+  width: 6px;
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.split::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border);
+}
+
+.split:hover::before,
+.split:focus-visible::before,
+body.splitting .split::before {
+  width: 2px;
+  background: var(--accent);
+}
+
+.split:focus-visible {
+  outline: none;
+}
+
+body.splitting {
+  cursor: col-resize;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .pane-head {
